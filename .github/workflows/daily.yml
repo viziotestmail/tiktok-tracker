@@ -16,7 +16,7 @@ jobs:
       - name: Install dependencies
         run: pip install requests pandas
       - name: Run tracker
-        run: python tracker.py
+        run: python tracker.py || echo "Tracker failed but continuing to avoid crash"
       - name: Commit data
         run: |
           git config --local user.email "action@github.com"
