@@ -21,6 +21,12 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add tiktok_daily_stats.csv
-          git commit -m "Daily update: $(date +'%Y-%m-%d')" || exit 0
-          git push
+          # Only try to add and commit if the file actually exists
+          if [ -f tiktok_daily_stats.csv ]; then
+            git add tiktok_daily_stats.csv
+            git commit -m "Daily update: $(date +'%Y-%m-%d')" || echo "No changes to commit"
+            git push
+          else
+            echo "File not found. tracker.py might have failed."
+            exit 1
+          fi
