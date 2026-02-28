@@ -2,49 +2,57 @@ import requests
 import pandas as pd
 from datetime import datetime
 import os
+import json
+import re
 
-USERNAME = "khaby.lame" # Change to your username
+USERNAME = "khaby.lame" # Change to yours
 CSV_FILE = "tiktok_daily_stats.csv"
-API_URL = f"https://countik.com/api/userinfo?user={USERNAME.replace('@', '')}"
 
 def track_stats():
-    # Enhanced headers to bypass "Bot Detection"
+    # We use the mobile URL as it's often less guarded
+    url = f"https://www.tiktok.com/@{USERNAME.replace('@', '')}"
+    
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "application/json",
-        "Referer": "https://countik.com/tiktok-follower-count",
-        "Origin": "https://countik.com"
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
     }
     
     try:
-        print(f"Connecting to API for {USERNAME}...")
-        response = requests.get(API_URL, headers=headers, timeout=20)
+        print(f"Bypassing blocks for {USERNAME}...")
+        response = requests.get(url, headers=headers, timeout=30)
         
         if response.status_code != 200:
-            print(f"❌ API Blocked us (Status {response.status_code}).")
-            # Create an empty file so the GitHub Action doesn't crash
-            if not os.path.exists(CSV_FILE):
-                pd.DataFrame(columns=["Date", "Followers", "Likes", "Videos", "Total_Views"]).to_csv(CSV_FILE, index=False)
+            print(f"❌ Blocked by TikTok (Status {response.status_code}).")
             return
 
-        data = response.json()
+        # Use Regex to find the hidden JSON data in the page HTML
+        # This is where TikTok hides the follower counts for the browser to read
+        pattern = r'<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__" type="application/json">(.*?)</script>'
+        match = re.search(pattern, response.text)
         
-        # Check if we actually got data
-        followers = data.get("followerCount", 0)
-        if followers == 0:
-            print("⚠️ API returned 0. The account might be private or the username is wrong.")
+        if not match:
+            print("❌ Could not find data on page. Profile might be private or layout changed.")
             return
+
+        raw_data = json.loads(match.group(1))
+        # Deep dive into the JSON structure
+        user_info = raw_data.get("__DEFAULT_SCOPE__", {}).get("webapp.user-detail", {}).get("userInfo", {}).get("stats", {})
+        
+        followers = user_info.get("followerCount", 0)
+        likes = user_info.get("heartCount", 0)
+        videos = user_info.get("videoCount", 0)
+        views = user_info.get("diggCount", 0) # 'diggCount' is often used as a proxy for reach if views are hidden
 
         stats = {
             "Date": datetime.now().strftime("%Y-%m-%d"),
             "Followers": followers,
-            "Likes": data.get("heartCount", 0),
-            "Videos": data.get("videoCount", 0),
-            "Total_Views": data.get("viewCount", 0)
+            "Likes": likes,
+            "Videos": videos,
+            "Total_Views": views
         }
 
         df_new = pd.DataFrame([stats])
-        
         if os.path.exists(CSV_FILE):
             df_existing = pd.read_csv(CSV_FILE)
             if stats["Date"] in df_existing['Date'].values:
@@ -54,10 +62,10 @@ def track_stats():
         else:
             df_new.to_csv(CSV_FILE, index=False)
             
-        print(f"🎉 Success! Logged {followers} followers.")
+        print(f"🎉 Success! Logged {followers} followers and {likes} likes.")
         
     except Exception as e:
-        print(f"❌ Critical Error: {e}")
+        print(f"❌ Error: {e}")
 
 if __name__ == "__main__":
     track_stats()
