@@ -2,54 +2,50 @@ name: Daily TikTok Stats
 
 on:
   schedule:
-    # Runs at 00:00 UTC every day
     - cron: '0 0 * * *'
-  # Allows you to run this manually from the Actions tab
   workflow_dispatch:
 
-# Gives the GITHUB_TOKEN write access to push the CSV back to your repo
 permissions:
   contents: write
+
+# This tells GitHub to use the new Node 24 engine for everything in this file
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Pull the code from your repository
+      # Updated to v6 for Node 24 support
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
-      # 2. Set up the Python environment
+      # Updated to v6 for Node 24 support
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.10'
           cache: 'pip'
 
-      # 3. Install necessary libraries
       - name: Install Dependencies
         run: |
           pip install requests pandas
 
-      # 4. Run the scraper script
       - name: Run TikTok Tracker
         run: |
-          python tracker.py || echo "Scraper failed, but continuing to avoid workflow crash"
+          python tracker.py || echo "Scraper failed, but continuing"
 
-      # 5. Save the updated CSV back to the repository
       - name: Commit and Push Data
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           
-          # Only proceed if the file exists
           if [ -f tiktok_daily_stats.csv ]; then
             git add tiktok_daily_stats.csv
-            # Commit only if there are actual changes to the file
-            git commit -m "Daily update: $(date +'%Y-%m-%d')" || echo "No new data to commit today"
+            git commit -m "Daily update: $(date +'%Y-%m-%d')" || echo "No new data"
             git push
           else
-            echo "Error: tiktok_daily_stats.csv not found. Check tracker.py logs."
+            echo "Error: File not found."
             exit 1
           fi
