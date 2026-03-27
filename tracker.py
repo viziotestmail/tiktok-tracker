@@ -4,68 +4,66 @@ from datetime import datetime
 import os
 import json
 import re
+import time
 
-USERNAME = "khaby.lame" # Change to yours
+# --- LIST YOUR 4 ACCOUNTS HERE ---
+USERNAMES = ["khaby.lame", "mrbeast", "tiktok", "charlidamelio"] 
 CSV_FILE = "tiktok_daily_stats.csv"
 
-def track_stats():
-    # We use the mobile URL as it's often less guarded
-    url = f"https://www.tiktok.com/@{USERNAME.replace('@', '')}"
-    
+def get_user_data(username):
+    url = f"https://www.tiktok.com/@{username.replace('@', '')}"
     headers = {
         "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
     }
     
     try:
-        print(f"Bypassing blocks for {USERNAME}...")
         response = requests.get(url, headers=headers, timeout=30)
-        
         if response.status_code != 200:
-            print(f"❌ Blocked by TikTok (Status {response.status_code}).")
-            return
+            return None
 
-        # Use Regex to find the hidden JSON data in the page HTML
-        # This is where TikTok hides the follower counts for the browser to read
         pattern = r'<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__" type="application/json">(.*?)</script>'
         match = re.search(pattern, response.text)
-        
-        if not match:
-            print("❌ Could not find data on page. Profile might be private or layout changed.")
-            return
+        if not match: return None
 
         raw_data = json.loads(match.group(1))
-        # Deep dive into the JSON structure
         user_info = raw_data.get("__DEFAULT_SCOPE__", {}).get("webapp.user-detail", {}).get("userInfo", {}).get("stats", {})
         
-        followers = user_info.get("followerCount", 0)
-        likes = user_info.get("heartCount", 0)
-        videos = user_info.get("videoCount", 0)
-        views = user_info.get("diggCount", 0) # 'diggCount' is often used as a proxy for reach if views are hidden
-
-        stats = {
+        return {
             "Date": datetime.now().strftime("%Y-%m-%d"),
-            "Followers": followers,
-            "Likes": likes,
-            "Videos": videos,
-            "Total_Views": views
+            "Username": username,
+            "Followers": user_info.get("followerCount", 0),
+            "Likes": user_info.get("heartCount", 0),
+            "Videos": user_info.get("videoCount", 0),
+            "Total_Views": user_info.get("diggCount", 0)
         }
+    except:
+        return None
 
-        df_new = pd.DataFrame([stats])
-        if os.path.exists(CSV_FILE):
-            df_existing = pd.read_csv(CSV_FILE)
-            if stats["Date"] in df_existing['Date'].values:
-                print("✅ Already logged today.")
-                return
-            df_new.to_csv(CSV_FILE, mode='a', header=False, index=False)
-        else:
-            df_new.to_csv(CSV_FILE, index=False)
-            
-        print(f"🎉 Success! Logged {followers} followers and {likes} likes.")
-        
-    except Exception as e:
-        print(f"❌ Error: {e}")
+def track_all():
+    all_results = []
+    for user in USERNAMES:
+        print(f"Tracking {user}...")
+        data = get_user_data(user)
+        if data:
+            all_results.append(data)
+        time.sleep(5) # 5-second pause to stay "stealthy"
+
+    if not all_results:
+        print("No data collected.")
+        return
+
+    df_new = pd.DataFrame(all_results)
+    
+    if os.path.exists(CSV_FILE):
+        df_existing = pd.read_csv(CSV_FILE)
+        # Combine and remove duplicates based on Date + Username
+        df_final = pd.concat([df_existing, df_new]).drop_duplicates(subset=['Date', 'Username'], keep='last')
+        df_final.to_csv(CSV_FILE, index=False)
+    else:
+        df_new.to_csv(CSV_FILE, index=False)
+    
+    print(f"Done! Updated stats for {len(all_results)} accounts.")
 
 if __name__ == "__main__":
-    track_stats()
+    track_all()
