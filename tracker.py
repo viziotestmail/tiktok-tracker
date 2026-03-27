@@ -7,7 +7,7 @@ import re
 import time
 
 # --- LIST YOUR 4 ACCOUNTS HERE ---
-USERNAMES = ["khaby.lame", "mrbeast", "tiktok", "charlidamelio"] 
+USERNAMES = ["khaby.lame", "chloe.xoxo95", "solveig.chloe", "charlidamelio"] 
 CSV_FILE = "tiktok_daily_stats.csv"
 
 def get_user_data(username):
