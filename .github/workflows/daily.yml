@@ -1,35 +1,55 @@
 name: Daily TikTok Stats
+
 on:
   schedule:
-    - cron: '0 0 * * *'  # Runs once a day at midnight
+    # Runs at 00:00 UTC every day
+    - cron: '0 0 * * *'
+  # Allows you to run this manually from the Actions tab
   workflow_dispatch:
 
+# Gives the GITHUB_TOKEN write access to push the CSV back to your repo
 permissions:
-  contents: write  
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v3
+      # 1. Pull the code from your repository
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 2. Set up the Python environment
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
-      - name: Install dependencies
-        run: pip install requests pandas
-      - name: Run tracker
-        run: python tracker.py || echo "Tracker failed but continuing to avoid crash"
-      - name: Commit data
+          python-version: '3.10'
+          cache: 'pip'
+
+      # 3. Install necessary libraries
+      - name: Install Dependencies
+        run: |
+          pip install requests pandas
+
+      # 4. Run the scraper script
+      - name: Run TikTok Tracker
+        run: |
+          python tracker.py || echo "Scraper failed, but continuing to avoid workflow crash"
+
+      # 5. Save the updated CSV back to the repository
+      - name: Commit and Push Data
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          # Only try to add and commit if the file actually exists
+          
+          # Only proceed if the file exists
           if [ -f tiktok_daily_stats.csv ]; then
             git add tiktok_daily_stats.csv
-            git commit -m "Daily update: $(date +'%Y-%m-%d')" || echo "No changes to commit"
+            # Commit only if there are actual changes to the file
+            git commit -m "Daily update: $(date +'%Y-%m-%d')" || echo "No new data to commit today"
             git push
           else
-            echo "File not found. tracker.py might have failed."
+            echo "Error: tiktok_daily_stats.csv not found. Check tracker.py logs."
             exit 1
           fi
